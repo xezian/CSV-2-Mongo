@@ -116,9 +116,11 @@ def handle_csv_upload(event, context):
         user = db.user.find_one({"normalized_email": valid_email})
         managers = []
         if user.get("manager_id"):  # At least one person actually has no managers
-            manager_chain = db.chain_of_command.find_one({"user_id": manager["_id"]})
+            manager_chain = db.chain_of_command.find_one(
+                {"user_id": user["manager_id"]}
+            )
             managers = manager_chain["chain_of_command"]
-            managers.append(manager["_id"])
+            managers.append(user["manager_id"])
         db.chain_of_command.update(
             {"user_id": user["_id"]},
             {"$set": {"chain_of_command": managers}},
