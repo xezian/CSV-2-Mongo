@@ -210,3 +210,34 @@ John Smith,jsmith@performyard.com,bjones@performyard.com,80000,07/16/2018"""
     assert response["statusCode"] == 200
     body = json.loads(response["body"])
     assert "Row 1 unprocessable, wrong number of columns" in body["errors"]
+
+
+def test_invalid_email():
+    """
+    Tests an invalid email will be skipped completely
+    """
+    body = """Name,Email,Manager,Salary,Hire Date
+New Person One,NOT A VALID EMAIL,,100000,02/10/2010
+New Person Two,valid@email.com,,100000,02/10/2010
+"""
+    response = handle_csv_upload(body, {})
+    assert response["statusCode"] == 200
+    body = json.loads(response["body"])
+    person_one = db.user.find_one({"normalized_email": "NOT A VALID EMAIL"})
+    person_two = db.user.find_one({"normalized_email": "valid@email.com"})
+    assert "Invalid email: NOT A VALID EMAIL\nEntry unprocessable" in body["errors"]
+    assert body["numCreated"] == 1
+    assert person_one is None
+    assert person_two["name"] == "New Person Two"
+
+
+def test_invalid_name():
+    """
+    Tests any row the wrong length is ignored and noted in errors
+    """
+    body = """Name,Email,Manager,Salary,Hire Date
+Brad7 Jones,bjones@performyard.com,,100000,02/10/2010"""
+    response = handle_csv_upload(body, {})
+    assert response["statusCode"] == 200
+    body = json.loads(response["body"])
+    assert "Invalid name: Brad7 Jones\nContinuing Update" in body["errors"]
