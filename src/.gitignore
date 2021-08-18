@@ -1,7 +1,7 @@
 # Distribution / packaging
 .Python
 *.pyc
-venv/
+.venv/
 env/
 build/
 develop-eggs/
