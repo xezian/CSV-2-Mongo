@@ -67,7 +67,7 @@ def handle_csv_upload(event, context):
 
         # Process invalid fields into errors
         # Create user update object with valid name, salary, manager_id, hire_date
-        update_user = {}
+        user_update = {}
         manager = None
 
         if not valid_email:
@@ -79,7 +79,7 @@ def handle_csv_upload(event, context):
             # manager email is either a valid email or None at this point
             manager = db.user.find_one({"normalized_email": valid_manager_email})
             if manager:
-                update_user["manager_id"] = manager["_id"]
+                user_update["manager_id"] = manager["_id"]
             else:
                 errors.append(
                     f"Invalid manager email: {entry['Manager']}\nEntry unprocessable"
@@ -88,23 +88,23 @@ def handle_csv_upload(event, context):
                 continue
 
         if valid_name:
-            update_user["name"] = valid_name
+            user_update["name"] = valid_name
         else:
             errors.append(f"Invalid name: {entry['Name']}\nContinuing update")
 
         if valid_salary:
-            update_user["salary"] = valid_salary
+            user_update["salary"] = valid_salary
         else:
             errors.append(f"Invalid salary: {entry['Salary']}\nContinuing update")
 
         if valid_hire_date:
-            update_user["hire_date"] = valid_hire_date
+            user_update["hire_date"] = valid_hire_date
         else:
             errors.append(f"Invalid hire date: {entry['Hire Date']}\nContinuing update")
 
         # Update/upsert
         updated = db.user.update(
-            {"normalized_email": valid_email}, {"$set": update_user}, upsert=True
+            {"normalized_email": valid_email}, {"$set": user_update}, upsert=True
         )
 
         # Get updated/created counts from update/upsert record response
