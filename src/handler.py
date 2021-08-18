@@ -30,7 +30,8 @@ def handle_csv_upload(event, context):
         # Assume we have no headers since all are missing
         headers = COLUMNS
     else:
-        headers = next(reader)  # using the provided headers
+        # using the provided headers, and iterating reader to the next row
+        headers = next(reader)
 
         # Since we have headers, check that headers are the expected (sorted for consistency)
         missing = sorted(set(COLUMNS) - set(headers))
@@ -57,6 +58,7 @@ def handle_csv_upload(event, context):
 
     # Loop through list of row dicts
     for entry in entries:
+        # get validity
         (
             valid_email,
             valid_name,
@@ -65,8 +67,7 @@ def handle_csv_upload(event, context):
             valid_hire_date,
         ) = validate_entry(entry)
 
-        # Process invalid fields into errors
-        # Create user update object with valid name, salary, manager_id, hire_date
+        # Create user update object with valid fields, process invalid fields into errors
         user_update = {}
         manager = None
 
