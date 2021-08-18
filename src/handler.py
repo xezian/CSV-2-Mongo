@@ -46,9 +46,10 @@ def handle_csv_upload(event, context):
 
     # Create a list of dicts of rows, ignore rows with wrong number of columns
     entries = []
+    errors = []
     for row in reader:
         if len(row) != len(headers):
-            response_body["errors"].append(
+            errors.append(
                 f"Row {reader.line_num - 1} unprocessable, wrong number of columns"
             )
         else:
@@ -64,44 +65,49 @@ def handle_csv_upload(event, context):
             valid_hire_date,
         ) = validate_entry(entry)
 
-        # Process validated fields into errors
+        # Process invalid fields into errors
+        # Create user update object with valid name, salary, manager_id, hire_date
+        update_user = {}
+        manager = None
+
         if not valid_email:
-            response_body["errors"].append(
-                f"Invalid email: {entry['Email']}\nEntry unprocessable"
-            )
+            errors.append(f"Invalid email: {entry['Email']}\nEntry unprocessable")
             # Skip ahead to the next record
             continue
 
-        if not valid_name:
-            response_body["errors"].append(
-                f"Invalid name: {entry['Name']}\nContinuing Update"
-            )
-        if not valid_salary:
-            response_body["errors"].append(
-                f"Invalid salary: {entry['Salary']}\nContinuing Update"
-            )
-        if not valid_hire_date:
-            response_body["errors"].append(
-                f"Invalid hire date: {entry['Hire Date']}\nContinuing Update"
-            )
-
-        update_user = {}
-        manager = None
-        # Update name, salary, manager_id, hire_date
-        if valid_name:
-            update_user["name"] = valid_name
-        if valid_salary:
-            update_user["salary"] = valid_salary
-        if valid_manager_email:
+        if valid_manager_email != "":  # If blank leave manager_id field alone
+            # manager email is either a valid email or None at this point
             manager = db.user.find_one({"normalized_email": valid_manager_email})
             if manager:
                 update_user["manager_id"] = manager["_id"]
+            else:
+                errors.append(
+                    f"Invalid manager email: {entry['Manager']}\nEntry unprocessable"
+                )
+                # Skip ahead to the next record if bad manager email
+                continue
+
+        if valid_name:
+            update_user["name"] = valid_name
+        else:
+            errors.append(f"Invalid name: {entry['Name']}\nContinuing update")
+
+        if valid_salary:
+            update_user["salary"] = valid_salary
+        else:
+            errors.append(f"Invalid salary: {entry['Salary']}\nContinuing update")
+
         if valid_hire_date:
             update_user["hire_date"] = valid_hire_date
+        else:
+            errors.append(f"Invalid hire date: {entry['Hire Date']}\nContinuing update")
 
+        # Update/upsert
         updated = db.user.update(
             {"normalized_email": valid_email}, {"$set": update_user}, upsert=True
         )
+
+        # Get updated/created counts from update/upsert record response
         if updated["updatedExisting"]:
             response_body["numUpdated"] += 1
         else:
@@ -109,7 +115,7 @@ def handle_csv_upload(event, context):
 
         user = db.user.find_one({"normalized_email": valid_email})
         managers = []
-        if manager:
+        if user.get("manager_id"):  # At least one person actually has no managers
             manager_chain = db.chain_of_command.find_one({"user_id": manager["_id"]})
             managers = manager_chain["chain_of_command"]
             managers.append(manager["_id"])
@@ -118,6 +124,7 @@ def handle_csv_upload(event, context):
             {"$set": {"chain_of_command": managers}},
             upsert=True,
         )
+    response_body["errors"] = errors
     response = {"statusCode": 200, "body": json.dumps(response_body)}
     return response
 
@@ -133,9 +140,15 @@ def validate_entry(entry):
         else None
     )
     valid_salary = validate_salary(entry["Salary"])
-    valid_manager_email = (
-        entry["Manager"] if re.match(r"[^@]+@[^@]+\.[^@]+", entry["Manager"]) else None
-    )
+
+    if entry["Manager"].strip() == "":
+        valid_manager_email = ""
+    else:
+        valid_manager_email = (
+            entry["Manager"]
+            if re.match(r"[^@]+@[^@]+\.[^@]+", entry["Manager"])
+            else None
+        )
     valid_hire_date = validate_hire_date(entry["Hire Date"])
     return valid_email, valid_name, valid_salary, valid_manager_email, valid_hire_date
 

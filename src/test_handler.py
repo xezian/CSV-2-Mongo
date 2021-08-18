@@ -240,4 +240,4 @@ Brad7 Jones,bjones@performyard.com,,100000,02/10/2010"""
     response = handle_csv_upload(body, {})
     assert response["statusCode"] == 200
     body = json.loads(response["body"])
-    assert "Invalid name: Brad7 Jones\nContinuing Update" in body["errors"]
+    assert "Invalid name: Brad7 Jones\nContinuing update" in body["errors"]
